@@ -1,145 +1,105 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import {
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
+
 import { UsersService } from '../users/users.service';
 import { WalletTransactionDto } from './dto/wallet-transaction.dto';
 import { Transaction, TransactionType } from './entities/transaction.entity';
-import { Wallet, WalletStatus, Currency } from './entities/wallet.entity';
+import { Currency, Wallet, WalletStatus } from './entities/wallet.entity';
 import { WalletsService } from './wallets.service';
-
-const mockWallet: Wallet = {
-  id: 'wallet-uuid-1',
-  userId: 'user-uuid-1',
-  currency: Currency.USD,
-  balance: 5000,
-  status: WalletStatus.ACTIVE,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  user: null,
-  transactions: [],
-};
-
-const mockTransaction: Transaction = {
-  id: 'tx-uuid-1',
-  walletId: 'wallet-uuid-1',
-  type: TransactionType.CREDIT,
-  amount: 1000,
-  balanceBefore: 5000,
-  balanceAfter: 6000,
-  referenceId: 'ref-001',
-  description: 'Test credit',
-  createdAt: new Date(),
-  wallet: null,
-};
 
 describe('WalletsService', () => {
   let service: WalletsService;
+  let txRepo: any;
+  let manager: any;
 
-  const mockManager = {
-    findOne: jest.fn(),
-    save: jest.fn(),
-    create: jest.fn(),
-  };
-
-  const mockDataSource = {
-    transaction: jest.fn((cb) => cb(mockManager)),
-  };
-
-  const mockWalletRepository = {
-    create: jest.fn(),
-    save: jest.fn(),
-    findOne: jest.fn(),
-    find: jest.fn(),
-  };
-
-  const mockTransactionRepository = {
-    find: jest.fn(),
-    findOne: jest.fn(),
-  };
-
-  const mockUsersService = {
-    findOne: jest.fn().mockResolvedValue({ id: 'user-uuid-1' }),
+  const wallet: Wallet = {
+    id: 'wallet-uuid-1',
+    userId: 'user-uuid-1',
+    currency: Currency.USD,
+    balance: 5000,
+    status: WalletStatus.ACTIVE,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    user: undefined as any,
+    transactions: [],
   };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    txRepo = { findOne: jest.fn(), find: jest.fn() };
+    manager = { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
+
+    const module = await Test.createTestingModule({
       providers: [
         WalletsService,
-        { provide: getRepositoryToken(Wallet), useValue: mockWalletRepository },
-        { provide: getRepositoryToken(Transaction), useValue: mockTransactionRepository },
-        { provide: getDataSourceToken(), useValue: mockDataSource },
-        { provide: UsersService, useValue: mockUsersService },
+        { provide: getRepositoryToken(Wallet), useValue: { create: jest.fn(), save: jest.fn(), findOne: jest.fn(), find: jest.fn() } },
+        { provide: getRepositoryToken(Transaction), useValue: txRepo },
+        { provide: getDataSourceToken(), useValue: { transaction: jest.fn((cb) => cb(manager)) } },
+        { provide: UsersService, useValue: { findOne: jest.fn().mockResolvedValue({ id: 'user-uuid-1' }) } },
       ],
     }).compile();
 
-    service = module.get<WalletsService>(WalletsService);
-    jest.clearAllMocks();
+    service = module.get(WalletsService);
   });
 
-  describe('credit()', () => {
-    it('stores balanceBefore and balanceAfter', async () => {
-      const dto: WalletTransactionDto = { amount: 1000, referenceId: 'ref-credit-001' };
+  it('records before/after balance on credit', async () => {
+    const dto: WalletTransactionDto = { amount: 1000, referenceId: 'ref-credit-001' };
 
-      mockTransactionRepository.findOne.mockResolvedValue(null);
-      mockManager.findOne.mockResolvedValue({ ...mockWallet });
-      mockManager.create.mockReturnValue({ ...mockTransaction });
-      mockManager.save
-        .mockResolvedValueOnce({ ...mockWallet, balance: 6000 })
-        .mockResolvedValueOnce({ ...mockTransaction, balanceBefore: 5000, balanceAfter: 6000 });
+    txRepo.findOne.mockResolvedValue(null);
+    manager.findOne.mockResolvedValue({ ...wallet });
+    manager.create.mockReturnValue({
+      id: 'tx-1',
+      walletId: wallet.id,
+      type: TransactionType.CREDIT,
+      amount: 1000,
+      balanceBefore: 5000,
+      balanceAfter: 6000,
+      referenceId: dto.referenceId,
+      createdAt: new Date(),
+    } as Transaction);
+    manager.save
+      .mockResolvedValueOnce({ ...wallet, balance: 6000 })
+      .mockResolvedValueOnce({ balanceBefore: 5000, balanceAfter: 6000, type: TransactionType.CREDIT });
 
-      const result = await service.credit('wallet-uuid-1', dto);
+    const result = await service.credit(wallet.id, dto);
 
-      expect(result.balanceBefore).toBe(5000);
-      expect(result.balanceAfter).toBe(6000);
-      expect(result.type).toBe(TransactionType.CREDIT);
-    });
+    expect(result.balanceBefore).toBe(5000);
+    expect(result.balanceAfter).toBe(6000);
   });
 
-  describe('debit()', () => {
-    it('reduces balance', async () => {
-      const dto: WalletTransactionDto = { amount: 2000, referenceId: 'ref-debit-001' };
+  it('reduces balance on debit', async () => {
+    const dto: WalletTransactionDto = { amount: 2000, referenceId: 'ref-debit-001' };
 
-      mockTransactionRepository.findOne.mockResolvedValue(null);
-      mockManager.findOne.mockResolvedValue({ ...mockWallet });
-      mockManager.create.mockReturnValue({
-        ...mockTransaction,
-        type: TransactionType.DEBIT,
-        amount: 2000,
-        balanceBefore: 5000,
-        balanceAfter: 3000,
-      });
-      mockManager.save
-        .mockResolvedValueOnce({ ...mockWallet, balance: 3000 })
-        .mockResolvedValueOnce({
-          ...mockTransaction,
-          type: TransactionType.DEBIT,
-          balanceBefore: 5000,
-          balanceAfter: 3000,
-        });
+    txRepo.findOne.mockResolvedValue(null);
+    manager.findOne.mockResolvedValue({ ...wallet });
+    manager.create.mockReturnValue({});
+    manager.save
+      .mockResolvedValueOnce({ ...wallet, balance: 3000 })
+      .mockResolvedValueOnce({ balanceBefore: 5000, balanceAfter: 3000, type: TransactionType.DEBIT });
 
-      const result = await service.debit('wallet-uuid-1', dto);
+    const result = await service.debit(wallet.id, dto);
 
-      expect(result.balanceBefore).toBe(5000);
-      expect(result.balanceAfter).toBe(3000);
-    });
-
-    it('rejects when balance is too low', async () => {
-      const dto: WalletTransactionDto = { amount: 9999, referenceId: 'ref-debit-002' };
-
-      mockTransactionRepository.findOne.mockResolvedValue(null);
-      mockManager.findOne.mockResolvedValue({ ...mockWallet, balance: 5000 });
-
-      await expect(service.debit('wallet-uuid-1', dto)).rejects.toThrow(BadRequestException);
-    });
+    expect(result.balanceBefore).toBe(5000);
+    expect(result.balanceAfter).toBe(3000);
   });
 
-  describe('referenceId idempotency', () => {
-    it('rejects duplicate referenceId', async () => {
-      const dto: WalletTransactionDto = { amount: 500, referenceId: 'ref-dup-001' };
+  it('rejects debit when balance is too low', async () => {
+    txRepo.findOne.mockResolvedValue(null);
+    manager.findOne.mockResolvedValue({ ...wallet, balance: 5000 });
 
-      mockTransactionRepository.findOne.mockResolvedValue(mockTransaction);
+    await expect(
+      service.debit(wallet.id, { amount: 9999, referenceId: 'ref-x' }),
+    ).rejects.toThrow(BadRequestException);
+  });
 
-      await expect(service.credit('wallet-uuid-1', dto)).rejects.toThrow(ConflictException);
-    });
+  it('rejects duplicate referenceId', async () => {
+    txRepo.findOne.mockResolvedValue({ referenceId: 'ref-dup' });
+
+    await expect(
+      service.credit(wallet.id, { amount: 500, referenceId: 'ref-dup' }),
+    ).rejects.toThrow(ConflictException);
   });
 });

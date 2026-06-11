@@ -1,13 +1,14 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
+  Entity,
+  JoinColumn,
   ManyToOne,
   OneToMany,
-  JoinColumn,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
+
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from './transaction.entity';
 
@@ -36,21 +37,32 @@ export class Wallet {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column({ type: 'enum', enum: Currency, default: Currency.USD })
+  @Column({
+    type: 'enum',
+    enum: Currency,
+    default: Currency.USD,
+  })
   currency: Currency;
 
-  @Column({ type: 'bigint', default: 0 })
+  @Column({
+    type: 'bigint',
+    default: 0,
+  })
   balance: number;
 
-  @Column({ type: 'enum', enum: WalletStatus, default: WalletStatus.ACTIVE })
+  @Column({
+    type: 'enum',
+    enum: WalletStatus,
+    default: WalletStatus.ACTIVE,
+  })
   status: WalletStatus;
+
+  @OneToMany(() => Transaction, (transaction) => transaction.wallet)
+  transactions: Transaction[];
 
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @OneToMany(() => Transaction, (tx) => tx.wallet)
-  transactions: Transaction[];
 }

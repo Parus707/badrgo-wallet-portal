@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { User } from '@/lib/api';
+import { card, th } from '@/lib/styles';
 import EmptyState from '../ui/EmptyState';
 
 interface Props {
@@ -9,23 +10,23 @@ interface Props {
 }
 
 export default function UserTable({ users }: Props) {
-  if (users.length === 0) return <EmptyState message="No users yet. Create one above." />;
+  if (users.length === 0) return <EmptyState message="No users yet." />;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div className={`${card} overflow-hidden`}>
       <table className="w-full text-sm">
         <thead className="bg-slate-50 border-b">
           <tr>
-            {['Name', 'Email', 'Phone', 'Status', 'Wallets'].map((h) => (
-              <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                {h}
-              </th>
-            ))}
+            <th className={th}>Name</th>
+            <th className={th}>Email</th>
+            <th className={th}>Phone</th>
+            <th className={th}>Status</th>
+            <th className={th}></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {users.map((user) => (
-            <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+            <tr key={user.id} className="hover:bg-slate-50">
               <td className="px-4 py-3 font-medium text-slate-800">{user.name}</td>
               <td className="px-4 py-3 text-slate-500">{user.email}</td>
               <td className="px-4 py-3 text-slate-500">{user.phone}</td>
@@ -39,11 +40,8 @@ export default function UserTable({ users }: Props) {
                 </span>
               </td>
               <td className="px-4 py-3">
-                <Link
-                  href={`/users/${user.id}`}
-                  className="text-indigo-600 hover:underline text-xs font-medium"
-                >
-                  View wallets →
+                <Link href={`/users/${user.id}`} className="text-indigo-600 hover:underline text-xs">
+                  wallets
                 </Link>
               </td>
             </tr>

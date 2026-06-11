@@ -9,9 +9,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const data = await res.json();
 
   if (!res.ok) {
-    const message = Array.isArray(data.error)
-      ? data.error.join(', ')
-      : data.error ?? data.message ?? 'Request failed';
+    const raw = data.message ?? data.error ?? 'Request failed';
+    const message = Array.isArray(raw) ? raw.join(', ') : raw;
     throw new Error(message);
   }
 

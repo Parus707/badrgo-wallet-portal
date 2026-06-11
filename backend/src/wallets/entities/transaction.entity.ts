@@ -1,12 +1,13 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
+  Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import { Wallet } from './wallet.entity';
 
 export enum TransactionType {
@@ -29,6 +30,10 @@ export class Transaction {
   @Column({ type: 'enum', enum: TransactionType })
   type: TransactionType;
 
+  @Index({ unique: true })
+  @Column({ length: 100 })
+  referenceId: string;
+
   @Column({ type: 'bigint' })
   amount: number;
 
@@ -37,10 +42,6 @@ export class Transaction {
 
   @Column({ type: 'bigint' })
   balanceAfter: number;
-
-  @Index({ unique: true })
-  @Column({ length: 100 })
-  referenceId: string;
 
   @Column({ length: 255, nullable: true })
   description: string;

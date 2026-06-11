@@ -1,11 +1,12 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
+  Entity,
   OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
+
 import { Wallet } from '../../wallets/entities/wallet.entity';
 
 export enum UserStatus {
@@ -21,21 +22,25 @@ export class User {
   @Column({ length: 100 })
   name: string;
 
-  @Column({ length: 20 })
-  phone: string;
-
   @Column({ unique: true })
   email: string;
 
-  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE })
+  @Column({ length: 20 })
+  phone: string;
+
+  @Column({
+    type: 'enum',
+    enum: UserStatus,
+    default: UserStatus.ACTIVE,
+  })
   status: UserStatus;
+
+  @OneToMany(() => Wallet, (wallet) => wallet.user)
+  wallets: Wallet[];
 
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @OneToMany(() => Wallet, (wallet) => wallet.user)
-  wallets: Wallet[];
 }

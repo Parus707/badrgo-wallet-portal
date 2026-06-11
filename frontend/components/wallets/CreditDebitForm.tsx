@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api, Transaction } from '@/lib/api';
+import { card, input } from '@/lib/styles';
 
 interface Props {
   walletId: string;
@@ -13,26 +14,26 @@ export default function CreditDebitForm({ walletId, onSuccess }: Props) {
   const [amountDisplay, setAmountDisplay] = useState('');
   const [referenceId, setReferenceId] = useState('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [flash, setFlash] = useState('');
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    setSuccess('');
+    setFlash('');
 
-    const amountCents = Math.round(parseFloat(amountDisplay) * 100);
-    if (isNaN(amountCents) || amountCents <= 0) {
+    const cents = Math.round(parseFloat(amountDisplay) * 100);
+    if (isNaN(cents) || cents <= 0) {
       setError('Enter a valid amount.');
       return;
     }
 
-    setLoading(true);
+    setBusy(true);
     try {
-      const fn = type === 'credit' ? api.wallets.credit : api.wallets.debit;
-      const tx = await fn(walletId, { amount: amountCents, referenceId, description });
-      setSuccess(`${type === 'credit' ? 'Credited' : 'Debited'} $${(amountCents / 100).toFixed(2)}`);
+      const call = type === 'credit' ? api.wallets.credit : api.wallets.debit;
+      const tx = await call(walletId, { amount: cents, referenceId, description });
+      setFlash(`${type === 'credit' ? 'Credited' : 'Debited'} $${(cents / 100).toFixed(2)}`);
       setAmountDisplay('');
       setReferenceId('');
       setDescription('');
@@ -40,42 +41,48 @@ export default function CreditDebitForm({ walletId, onSuccess }: Props) {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
+  const toggle =
+    'flex-1 py-2 rounded-lg text-sm font-medium border transition-colors';
+  const toggleOn =
+    type === 'credit'
+      ? 'bg-green-600 text-white border-green-600'
+      : 'bg-red-600 text-white border-red-600';
+  const toggleOff = 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50';
+
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-slate-800">New Transaction</h2>
+    <form onSubmit={submit} className={`${card} p-6 space-y-4`}>
+      <h2 className="text-lg font-semibold text-slate-800">New transaction</h2>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
           {error}
         </p>
       )}
-      {success && (
+      {flash && (
         <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-          {success}
+          {flash}
         </p>
       )}
 
       <div className="flex gap-2">
-        {(['credit', 'debit'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setType(t)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize border transition-colors ${
-              type === t
-                ? t === 'credit'
-                  ? 'bg-green-600 text-white border-green-600'
-                  : 'bg-red-600 text-white border-red-600'
-                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => setType('credit')}
+          className={`${toggle} ${type === 'credit' ? toggleOn : toggleOff}`}
+        >
+          Credit
+        </button>
+        <button
+          type="button"
+          onClick={() => setType('debit')}
+          className={`${toggle} ${type === 'debit' ? toggleOn : toggleOff}`}
+        >
+          Debit
+        </button>
       </div>
 
       <div>
@@ -87,8 +94,7 @@ export default function CreditDebitForm({ walletId, onSuccess }: Props) {
           min="0.01"
           value={amountDisplay}
           onChange={(e) => setAmountDisplay(e.target.value)}
-          placeholder="10.50"
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+          className={input}
         />
       </div>
 
@@ -98,8 +104,7 @@ export default function CreditDebitForm({ walletId, onSuccess }: Props) {
           required
           value={referenceId}
           onChange={(e) => setReferenceId(e.target.value)}
-          placeholder="order-2024-001"
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+          className={input}
         />
       </div>
 
@@ -108,19 +113,19 @@ export default function CreditDebitForm({ walletId, onSuccess }: Props) {
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional"
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+          placeholder="optional"
+          className={input}
         />
       </div>
 
       <button
         type="submit"
-        disabled={loading}
-        className={`w-full py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 ${
+        disabled={busy}
+        className={`w-full py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 ${
           type === 'credit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
         }`}
       >
-        {loading ? 'Processing...' : `Submit ${type}`}
+        {busy ? 'One sec...' : type === 'credit' ? 'Credit wallet' : 'Debit wallet'}
       </button>
     </form>
   );

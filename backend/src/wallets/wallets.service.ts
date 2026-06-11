@@ -5,7 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { WalletTransactionDto } from './dto/wallet-transaction.dto';
@@ -16,121 +17,101 @@ import { Wallet, WalletStatus } from './entities/wallet.entity';
 export class WalletsService {
   constructor(
     @InjectRepository(Wallet)
-    private readonly walletRepository: Repository<Wallet>,
+    private wallets: Repository<Wallet>,
     @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>,
+    private txs: Repository<Transaction>,
     @InjectDataSource()
-    private readonly dataSource: DataSource,
-    private readonly usersService: UsersService,
+    private db: DataSource,
+    private users: UsersService,
   ) {}
 
-  async create(dto: CreateWalletDto): Promise<Wallet> {
-    await this.usersService.findOne(dto.userId);
-    const wallet = this.walletRepository.create({ ...dto, balance: 0 });
-    return this.walletRepository.save(wallet);
+  async create(dto: CreateWalletDto) {
+    await this.users.findOne(dto.userId);
+    return this.wallets.save(this.wallets.create({ ...dto, balance: 0 }));
   }
 
-  async findByUser(userId: string): Promise<Wallet[]> {
-    return this.walletRepository.find({
+  findByUser(userId: string) {
+    return this.wallets.find({
       where: { userId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async findOne(id: string): Promise<Wallet> {
-    const wallet = await this.walletRepository.findOne({
+  async findOne(id: string) {
+    const wallet = await this.wallets.findOne({
       where: { id },
       relations: ['user'],
     });
-    if (!wallet) {
-      throw new NotFoundException(`Wallet ${id} not found`);
-    }
+    if (!wallet) throw new NotFoundException(`Wallet ${id} not found`);
     return wallet;
   }
 
-  async getTransactions(walletId: string): Promise<Transaction[]> {
+  async getTransactions(walletId: string) {
     await this.findOne(walletId);
-    return this.transactionRepository.find({
+    return this.txs.find({
       where: { walletId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async credit(walletId: string, dto: WalletTransactionDto): Promise<Transaction> {
-    return this.processTransaction(walletId, dto, TransactionType.CREDIT);
+  credit(walletId: string, dto: WalletTransactionDto) {
+    return this.applyTx(walletId, dto, TransactionType.CREDIT);
   }
 
-  async debit(walletId: string, dto: WalletTransactionDto): Promise<Transaction> {
-    return this.processTransaction(walletId, dto, TransactionType.DEBIT);
+  debit(walletId: string, dto: WalletTransactionDto) {
+    return this.applyTx(walletId, dto, TransactionType.DEBIT);
   }
 
-  private async processTransaction(
+  private async applyTx(
     walletId: string,
     dto: WalletTransactionDto,
     type: TransactionType,
-  ): Promise<Transaction> {
-    const existing = await this.transactionRepository.findOne({
+  ) {
+    const existing = await this.txs.findOne({
       where: { referenceId: dto.referenceId },
     });
     if (existing) {
-      throw new ConflictException(
-        `Transaction with referenceId "${dto.referenceId}" already processed`,
-      );
+      throw new ConflictException(`Reference ${dto.referenceId} already used`);
     }
 
-    try {
-      return await this.dataSource.transaction(async (manager) => {
-        const wallet = await manager.findOne(Wallet, {
-          where: { id: walletId },
-          lock: { mode: 'pessimistic_write' },
-        });
+    return this.db.transaction(async (em) => {
+      const wallet = await em.findOne(Wallet, {
+        where: { id: walletId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-        if (!wallet) {
-          throw new NotFoundException(`Wallet ${walletId} not found`);
-        }
+      if (!wallet) throw new NotFoundException(`Wallet ${walletId} not found`);
+      if (wallet.status !== WalletStatus.ACTIVE) {
+        throw new BadRequestException(`Wallet is ${wallet.status}`);
+      }
 
-        if (wallet.status !== WalletStatus.ACTIVE) {
-          throw new BadRequestException(
-            `Wallet is ${wallet.status} and cannot process transactions`,
-          );
-        }
+      const before = Number(wallet.balance);
+      let after: number;
 
-        const balanceBefore = Number(wallet.balance);
-        let balanceAfter: number;
+      if (type === TransactionType.CREDIT) {
+        after = before + dto.amount;
+      } else if (before < dto.amount) {
+        throw new BadRequestException(
+          `Not enough balance (${before} cents available)`,
+        );
+      } else {
+        after = before - dto.amount;
+      }
 
-        if (type === TransactionType.CREDIT) {
-          balanceAfter = balanceBefore + dto.amount;
-        } else {
-          if (balanceBefore < dto.amount) {
-            throw new BadRequestException(
-              `Insufficient balance. Available: ${balanceBefore} cents, Requested: ${dto.amount} cents`,
-            );
-          }
-          balanceAfter = balanceBefore - dto.amount;
-        }
+      wallet.balance = after;
+      await em.save(wallet);
 
-        wallet.balance = balanceAfter;
-        await manager.save(Wallet, wallet);
-
-        const transaction = manager.create(Transaction, {
+      return em.save(
+        em.create(Transaction, {
           walletId,
           type,
           amount: dto.amount,
-          balanceBefore,
-          balanceAfter,
+          balanceBefore: before,
+          balanceAfter: after,
           referenceId: dto.referenceId,
           description: dto.description,
-        });
-
-        return manager.save(Transaction, transaction);
-      });
-    } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          `Transaction with referenceId "${dto.referenceId}" already processed`,
-        );
-      }
-      throw err;
-    }
+        }),
+      );
+    });
   }
 }

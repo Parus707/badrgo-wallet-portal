@@ -1,7 +1,7 @@
 export default function ErrorAlert({ message }: { message: string }) {
   return (
-    <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-      <strong>Error:</strong> {message}
+    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {message}
     </div>
   );
 }

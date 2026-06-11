@@ -3,14 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const navLinks = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/users', label: 'Users' },
-  { href: '/reports', label: 'Reports' },
-];
-
 export default function Navbar() {
   const pathname = usePathname();
+
+  const active = 'px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white';
+  const inactive = 'px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-700';
 
   return (
     <nav className="bg-slate-900 text-white shadow-lg">
@@ -24,19 +21,9 @@ export default function Navbar() {
           </div>
 
           <div className="flex gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  pathname === link.href
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            <Link href="/" className={pathname === '/' ? active : inactive}>Dashboard</Link>
+            <Link href="/users" className={pathname === '/users' ? active : inactive}>Users</Link>
+            <Link href="/reports" className={pathname === '/reports' ? active : inactive}>Reports</Link>
           </div>
         </div>
       </div>

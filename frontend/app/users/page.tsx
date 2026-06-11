@@ -21,18 +21,15 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Users</h1>
-        <p className="text-sm text-slate-500 mt-1">Create and manage platform users</p>
-      </div>
+      <h1 className="text-2xl font-bold text-slate-800">Users</h1>
 
       <UserCreateForm onCreated={(user) => setUsers((prev) => [user, ...prev])} />
 
       <div>
         <h2 className="text-base font-semibold text-slate-700 mb-3">
-          All Users ({users.length})
+          {loading ? 'Loading...' : `${users.length} user${users.length === 1 ? '' : 's'}`}
         </h2>
-        {loading && <LoadingSpinner label="Loading users..." />}
+        {loading && <LoadingSpinner />}
         {error && <ErrorAlert message={error} />}
         {!loading && !error && <UserTable users={users} />}
       </div>
