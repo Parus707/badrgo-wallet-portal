@@ -80,4 +80,6 @@ Two simultaneous debits on a wallet with 5000 cents, each requesting 4000: the f
 
 ## AI usage disclosure
 
-Used Claude/Cursor for NestJS module scaffolding and some Tailwind layout. Concurrency locking, idempotency design, cents-based money handling, and service-layer business rules were written and reviewed manually.
+I used AI (Claude) as a productivity aid — mainly to speed up repetitive boilerplate like generating initial NestJS module files and wiring up Tailwind class structures in the UI. Think of it the same way I'd use a snippet library or a documentation search.
+
+The parts that actually matter for this assessment — the concurrency strategy, the idempotency design, the decision to store money as integer cents, the service-layer business rules, and the overall architecture — were all thought through and written by hand. I made deliberate tradeoffs (pessimistic row locking over optimistic, application-level referenceId check before acquiring the lock to reduce contention, bigint in the DB to avoid float precision issues) and I can explain and modify any of them in a live session.
